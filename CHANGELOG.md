@@ -29,6 +29,7 @@ BUG FIXES:
 
 IMPROVEMENTS:
 - [rpc] `/tx` and `/tx_search` responses now include the transaction hash
+- [p2p] seeds respond with a bias towards good peers
 
 ## 0.17.1 (March 27th, 2018)
 
