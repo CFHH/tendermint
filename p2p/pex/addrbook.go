@@ -51,6 +51,8 @@ type AddrBook interface {
 
 	// Send a selection of addresses to peers
 	GetSelection() []*p2p.NetAddress
+	// Send a selection od addresses with bias
+	GetSelectionWithBias(newBias int) []*p2p.NetAddress
 
 	// TODO: remove
 	ListOfKnownAddresses() []*knownAddress
@@ -293,6 +295,86 @@ func (a *addrBook) GetSelection() []*p2p.NetAddress {
 
 	// slice off the limit we are willing to share.
 	return allAddr[:numAddresses]
+}
+
+// GetSelectionWithBias implements AddrBook.
+// It randomly selects some addresses (old & new). Suitable for peer-exchange protocols.
+//
+// Each address is picked randomly from an old or new bucket according to the
+// newBias argument, which must be between [0, 100] (or else is truncated to
+// that range) and determines how biased we are to pick an address from a new
+// bucket.
+func (a *addrBook) GetSelectionWithBias(newBias int) []*p2p.NetAddress {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+
+	if a.size() == 0 {
+		return nil
+	}
+
+	if newBias > 100 {
+		newBias = 100
+	}
+	if newBias < 0 {
+		newBias = 0
+	}
+
+	numAddresses := cmn.MaxInt(
+		cmn.MinInt(minGetSelection, a.size()),
+		a.size()*getSelectionPercent/100)
+	numAddresses = cmn.MinInt(maxGetSelection, numAddresses)
+
+	selection := make([]*p2p.NetAddress, numAddresses)
+
+	oldBucketAndIndex := make(map[int]int)
+	var oldIndex int
+	newBucketAndIndex := make(map[int]int)
+	var newIndex int
+	var bucket map[string]*knownAddress
+
+	i := 0
+
+	for i < numAddresses {
+		pickFromOldBucket := (i/numAddresses)*100 <= newBias
+
+		// loop until we pick a random non-empty bucket
+		for len(bucket) == 0 {
+			if pickFromOldBucket {
+				oldIndex = a.rand.Intn(len(a.bucketsOld))
+				bucket = a.bucketsOld[oldIndex]
+			} else {
+				newIndex = a.rand.Intn(len(a.bucketsNew))
+				bucket = a.bucketsNew[newIndex]
+			}
+		}
+
+		// pick a random index and loop over the map to return that index
+		randIndex := a.rand.Intn(len(bucket))
+		if pickFromOldBucket {
+			// check if we already added this address
+			if ind, ok := oldBucketAndIndex[oldIndex]; ok && ind == randIndex {
+				continue
+			}
+			oldBucketAndIndex[oldIndex] = randIndex
+		} else {
+			// check if we already added this address
+			if ind, ok := newBucketAndIndex[newIndex]; ok && ind == randIndex {
+				continue
+			}
+			newBucketAndIndex[newIndex] = randIndex
+		}
+
+		for _, ka := range bucket {
+			if randIndex == 0 {
+				selection[i] = ka.Addr
+			}
+			randIndex--
+		}
+
+		i++
+	}
+
+	return selection
 }
 
 // ListOfKnownAddresses returns the new and old addresses.

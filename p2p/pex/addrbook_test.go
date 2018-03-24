@@ -157,6 +157,13 @@ func TestAddrBookPromoteToOld(t *testing.T) {
 		t.Errorf("selection could not be bigger than the book")
 	}
 
+	selection = book.GetSelectionWithBias(30)
+	t.Logf("selection: %v", selection)
+
+	if len(selection) > book.Size() {
+		t.Errorf("selection with bias could not be bigger than the book")
+	}
+
 	assert.Equal(t, book.Size(), 100, "expecting book size to be 100")
 }
 
