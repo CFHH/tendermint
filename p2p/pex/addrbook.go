@@ -340,17 +340,17 @@ func (a *addrBook) GetSelectionWithBias(biasTowardsNewAddrs int) []*p2p.NetAddre
 	var oldIndex int
 	newBucketAndIndex := make(map[int]int)
 	var newIndex int
-	var bucket map[string]*knownAddress
 
 	i := 0
 ADDRS_LOOP:
 	for i < numAddresses {
 		pickFromOldBucket := int((float64(i)/float64(numAddresses))*100) >= biasTowardsNewAddrs
-		bucket = make(map[string]*knownAddress)
+		pickFromOldBucket = (pickFromOldBucket && a.nOld > 0) || a.nNew == 0
+		bucket := make(map[string]*knownAddress)
 
 		// loop until we pick a random non-empty bucket
 		for len(bucket) == 0 {
-			if (pickFromOldBucket && a.nOld > 0) || a.nNew == 0 {
+			if pickFromOldBucket {
 				oldIndex = a.rand.Intn(len(a.bucketsOld))
 				bucket = a.bucketsOld[oldIndex]
 			} else {
@@ -361,7 +361,7 @@ ADDRS_LOOP:
 
 		// pick a random index and loop over the map to return that index
 		randIndex := a.rand.Intn(len(bucket))
-		if (pickFromOldBucket && a.nOld > 0) || a.nNew == 0 {
+		if pickFromOldBucket {
 			// check if we already added this address
 			if ind, ok := oldBucketAndIndex[oldIndex]; ok && ind == randIndex {
 				continue ADDRS_LOOP
