@@ -43,6 +43,11 @@ const (
 	defaultCrawlPeersPeriod = 30 * time.Second // check some peers every this
 
 	maxAttemptsToDial = 16 // ~ 35h in total (last attempt - 18h)
+
+	// if node connects to seed, it does not have any trusted peers.
+	// Especially in the beginning, node should have more trusted peers than
+	// untrusted.
+	biasToSelectNewPeers = 30 // 70 to select good peers
 )
 
 // PEXReactor handles PEX (peer exchange) and ensures that an
@@ -191,10 +196,6 @@ func (r *PEXReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 
 		// Seeds disconnect after sending a batch of addrs
 		if r.config.SeedMode {
-			// if node connects to seed, it does not have any trusted peers.
-			// Especially in the beginning, node should have more trusted peers than
-			// untrusted.
-			const biasToSelectNewPeers = 30 // 70 to select good peers
 			r.SendAddrs(src, r.book.GetSelectionWithBias(biasToSelectNewPeers))
 			r.Switch.StopPeerGracefully(src)
 		} else {

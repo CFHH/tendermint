@@ -53,7 +53,7 @@ type AddrBook interface {
 
 	// Send a selection of addresses to peers
 	GetSelection() []*p2p.NetAddress
-	// Send a selection od addresses with bias
+	// Send a selection of addresses with bias
 	GetSelectionWithBias(biasTowardsNewAddrs int) []*p2p.NetAddress
 
 	// TODO: remove
