@@ -336,15 +336,15 @@ func (a *addrBook) GetSelectionWithBias(biasTowardsNewAddrs int) []*p2p.NetAddre
 
 	selection := make([]*p2p.NetAddress, numAddresses)
 
-	oldBucketAndIndex := make(map[int]int)
+	oldBucketToAddrsMap := make(map[int]map[string]struct{})
 	var oldIndex int
-	newBucketAndIndex := make(map[int]int)
+	newBucketToAddrsMap := make(map[int]map[string]struct{})
 	var newIndex int
 
-	i := 0
+	selectionIndex := 0
 ADDRS_LOOP:
-	for i < numAddresses {
-		pickFromOldBucket := int((float64(i)/float64(numAddresses))*100) >= biasTowardsNewAddrs
+	for selectionIndex < numAddresses {
+		pickFromOldBucket := int((float64(selectionIndex)/float64(numAddresses))*100) >= biasTowardsNewAddrs
 		pickFromOldBucket = (pickFromOldBucket && a.nOld > 0) || a.nNew == 0
 		bucket := make(map[string]*knownAddress)
 
@@ -359,30 +359,43 @@ ADDRS_LOOP:
 			}
 		}
 
-		// pick a random index and loop over the map to return that index
+		// pick a random index
 		randIndex := a.rand.Intn(len(bucket))
-		if pickFromOldBucket {
-			// check if we already added this address
-			if ind, ok := oldBucketAndIndex[oldIndex]; ok && ind == randIndex {
-				continue ADDRS_LOOP
-			}
-			oldBucketAndIndex[oldIndex] = randIndex
-		} else {
-			// check if we already added this address
-			if ind, ok := newBucketAndIndex[newIndex]; ok && ind == randIndex {
-				continue ADDRS_LOOP
-			}
-			newBucketAndIndex[newIndex] = randIndex
-		}
 
+		// loop over the map to return that index
+		var selectedAddr *p2p.NetAddress
 		for _, ka := range bucket {
 			if randIndex == 0 {
-				selection[i] = ka.Addr
-				i++
+				selectedAddr = ka.Addr
 				break
 			}
 			randIndex--
 		}
+
+		// if we have selected the address before, restart the loop
+		// otherwise, record it and continue
+		if pickFromOldBucket {
+			if addrsMap, ok := oldBucketToAddrsMap[oldIndex]; ok {
+				if _, ok = addrsMap[selectedAddr.String()]; ok {
+					continue ADDRS_LOOP
+				}
+			} else {
+				oldBucketToAddrsMap[oldIndex] = make(map[string]struct{})
+			}
+			oldBucketToAddrsMap[oldIndex][selectedAddr.String()] = struct{}{}
+		} else {
+			if addrsMap, ok := newBucketToAddrsMap[newIndex]; ok {
+				if _, ok = addrsMap[selectedAddr.String()]; ok {
+					continue ADDRS_LOOP
+				}
+			} else {
+				newBucketToAddrsMap[newIndex] = make(map[string]struct{})
+			}
+			newBucketToAddrsMap[newIndex][selectedAddr.String()] = struct{}{}
+		}
+
+		selection[selectionIndex] = selectedAddr
+		selectionIndex++
 	}
 
 	return selection
